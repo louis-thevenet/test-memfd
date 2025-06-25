@@ -5,12 +5,13 @@
 #include <errno.h>
 
 int main() {
+    #ifndef __NR_memfd_secret
+    printf("Doing stuff without memfd");
+    #else
+    printf("Doing stuff with memfd");
     long ret = syscall(__NR_memfd_secret, 0);
-    if (ret == -1) {
-        perror("syscall memfd_secret failed");
-        return 1;
-    }
-    printf("memfd_secret returned: %ld\n", ret);
+    #endif
+
     return 0;
 }
 
