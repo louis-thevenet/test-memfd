@@ -85,11 +85,11 @@
           name = "test-program";
           src = ./.;
           buildPhase = ''
-            gcc main.c -o main
+            gcc main.c -o test-program
           '';
           installPhase = ''
             mkdir -p $out/bin
-            cp main $out/bin
+            cp test-program $out/bin
           '';
         };
       };
