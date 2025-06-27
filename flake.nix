@@ -23,6 +23,9 @@
       glibcOverlay =
         final: prev:
         let
+          glibcLocales = pkgs-old.glibcLocales.override {
+            glibc = glibc;
+          };
           glibc =
             (pkgs-old.glibc.override {
               inherit (prev)
@@ -50,7 +53,7 @@
             };
         in
         {
-          inherit glibc;
+          inherit glibc glibcLocales;
         };
       pkgs-overlaid = import nixpkgs {
         inherit system;
@@ -71,24 +74,27 @@
         config.replaceBootstrapFiles =
           prevFiles:
           (pkgs-old.callPackage "${nixpkgs-old}/pkgs/stdenv/linux/make-bootstrap-tools.nix" {
-            # Even older nixpkgs need localSystem:
-            # localSystem = {
-            #   inherit system;
-            # };
+            #  localSystem = { inherit system; }; # Even older nixpkgs need localSystem
           }).bootstrapFiles;
       };
     in
     {
       packages = {
-        recent-gcc = pkgs-recent.gcc;
-        older-gcc = pkgs-overlaid.gcc;
+        test-program = pkgs-overlaid.stdenv.mkDerivation {
+          name = "test-program";
+          src = ./.;
+          buildPhase = ''
+            gcc main.c -o main
+          '';
+          installPhase = ''
+            mkdir -p $out/bin
+            cp main $out/bin
+          '';
+        };
       };
       devShells.${system}.default = pkgs-overlaid.mkShell {
-        buildInputs = with pkgs-overlaid; [
-          gcc
-        ];
+        packages = [ pkgs-overlaid.gcc ];
 
       };
-      overlays.default = glibcOverlay;
     };
 }
