@@ -1,15 +1,13 @@
 {
   description = "Nixpkgs with older glibc overlay";
-
   inputs = {
     # Latest stable nixpkgs
     nixpkgs.url = "github:NixOS/nixpkgs/25.05";
-    # Older nixpkgs that glibc 2.35-224
+    # Older nixpkgs that glibc 2.31
     # Easy to find with tools like https://lazamar.co.uk/nix-versions/?channel=nixpkgs-unstable&package=glibc
-    nixpkgs-old.url = "github:NixOS/nixpkgs/1b7a6a6e57661d7d4e0775658930059b77ce94a4";
+    nixpkgs-old.url = "github:NixOS/nixpkgs/3913f6a514fa3eb29e34af744cc97d0b0f93c35c";
     nixpkgs-old.flake = false;
   };
-
   outputs =
     {
       self,
@@ -23,19 +21,21 @@
       glibcOverlay =
         final: prev:
         let
-          glibcLocales = pkgs-old.glibcLocales.override {
-            glibc = glibc;
-          };
           glibc =
             (pkgs-old.glibc.override {
               inherit (prev)
-                lib
-                stdenv
                 callPackage
                 buildPackages
                 ;
+              stdenv = prev.stdenv // {
+                lib = prev.lib;
+              };
             }).overrideAttrs
               (attrs: {
+                # Ensure pname and version are preserved (needed for glibc 2.31 but not 2.35)
+                pname = attrs.pname or "glibc";
+                version = attrs.version;
+
                 configureFlags = attrs.configureFlags ++ [
                   # new gcc has stricter error checking
                   "--disable-werror"
@@ -46,19 +46,35 @@
                 passthru = attrs.passthru // {
                   libgcc = prev.libgcc;
                 };
-              })
-            // {
-              # new nixpkgs has this as a separate output
-              getent = glibc.bin;
-            };
+              });
+
+          # Use the old glibc's locales without override, or create a compatible one
+          glibcLocales =
+            pkgs-old.glibcLocales
+              or (pkgs-old.callPackage "${nixpkgs-old}/pkgs/development/libraries/glibc/locales.nix" {
+                inherit (pkgs-old)
+                  stdenv
+                  buildPackages
+                  callPackage
+                  writeText
+                  ;
+                libc = glibc;
+              });
         in
         {
-          inherit glibc glibcLocales;
+          # Ensure the glibc has the required attributes
+          glibc = glibc // {
+            # new nixpkgs has this as a separate output
+            getent = glibc.bin;
+            # Ensure pname is available at the top level (needed for glibc 2.31 but not 2.35)
+            pname = glibc.pname or "glibc";
+            version = glibc.version;
+          };
+          inherit glibcLocales;
         };
       pkgs-overlaid = import nixpkgs {
         inherit system;
         overlays = [ glibcOverlay ];
-
         config.replaceStdenv =
           { pkgs }:
           pkgs.overrideCC pkgs.stdenv (
@@ -71,15 +87,10 @@
               libc = pkgs.glibc;
             }
           );
-        config.replaceBootstrapFiles =
-          prevFiles:
-          (pkgs-old.callPackage "${nixpkgs-old}/pkgs/stdenv/linux/make-bootstrap-tools.nix" {
-            #  localSystem = { inherit system; }; # Even older nixpkgs need localSystem
-          }).bootstrapFiles;
       };
     in
     {
-      packages = {
+      packages.${system} = {
         gcc-old = pkgs-overlaid.gcc;
         gcc-new = pkgs-recent.gcc;
         test-program = pkgs-overlaid.stdenv.mkDerivation {
@@ -96,7 +107,6 @@
       };
       devShells.${system}.default = pkgs-overlaid.mkShell {
         packages = [ pkgs-overlaid.gcc ];
-
       };
     };
 }
