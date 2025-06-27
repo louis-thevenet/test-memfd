@@ -81,6 +81,7 @@
     {
       packages = {
         gcc-old = pkgs-overlaid.gcc;
+        gcc-new = pkgs-recent.gcc;
         test-program = pkgs-overlaid.stdenv.mkDerivation {
           name = "test-program";
           src = ./.;
