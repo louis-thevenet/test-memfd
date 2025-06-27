@@ -80,6 +80,7 @@
     in
     {
       packages = {
+        gcc-old = pkgs-overlaid.gcc;
         test-program = pkgs-overlaid.stdenv.mkDerivation {
           name = "test-program";
           src = ./.;
