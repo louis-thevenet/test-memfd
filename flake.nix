@@ -22,24 +22,39 @@
     }@inputs:
     let
       system = "x86_64-linux";
-      pkgs-25-05 = import nixpkgs { inherit system; };
-      pkgs-2-31 = import ./nixpkgs/nixpkgs-2-31.nix { inherit inputs system; };
+      nixpkgs-set = import ./nixpkgs/default.nix { inherit inputs; };
     in
     {
-      packages.${system} = {
-          name = "test-program";
-          src = ./.;
-          buildPhase = ''
-            gcc main.c -o test-program
-          '';
-          installPhase = ''
-            mkdir -p $out/bin
-            cp test-program $out/bin
-          '';
-        };
-      };
-      devShells.${system}.default = pkgs-2-31.mkShell {
-        packages = [ pkgs-2-31.gcc ];
-      };
+      packages.${system} =
+        let
+          build-test-program =
+            name: pkgs:
+
+            {
+              name = pkgs.stdenv.mkDerivation {
+                name = "test-program";
+                src = ./.;
+                buildPhase = ''
+                  gcc main.c -o test-program
+                '';
+                installPhase = ''
+                  mkdir -p $out/bin
+                  cp test-program $out/bin
+                '';
+              };
+            };
+
+        in
+        {
+          inherit (nixpkgs-set)
+            pkgs-25-05
+            pkgs-2-31-recent
+            pkgs-2-35-recent
+            ;
+        }
+      # // (builtins.mapAttrs build-test-program nixpkgs-set)
+
+      ;
+
     };
 }
