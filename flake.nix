@@ -28,20 +28,18 @@
       packages.${system} =
         let
           build-test-program =
-            name: pkgs:
+            pkgs:
 
-            {
-              name = pkgs.stdenv.mkDerivation {
-                name = "test-program";
-                src = ./.;
-                buildPhase = ''
-                  gcc main.c -o test-program
-                '';
-                installPhase = ''
-                  mkdir -p $out/bin
-                  cp test-program $out/bin
-                '';
-              };
+            pkgs.stdenv.mkDerivation {
+              name = "test-program";
+              src = ./.;
+              buildPhase = ''
+                gcc main.c -o test-program
+              '';
+              installPhase = ''
+                mkdir -p $out/bin
+                cp test-program $out/bin
+              '';
             };
 
         in
@@ -52,9 +50,11 @@
             pkgs-2-35-recent
             ;
         }
-      # // (builtins.mapAttrs build-test-program nixpkgs-set)
-
-      ;
+        // {
+          test-program-latest = build-test-program nixpkgs-set.pkgs-25-05;
+          test-program-2-31 = build-test-program nixpkgs-set.pkgs-2-31-recent;
+          test-program-2-35 = build-test-program nixpkgs-set.pkgs-2-35-recent;
+        };
 
     };
 }
