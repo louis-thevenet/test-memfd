@@ -8,7 +8,11 @@ let
 
   glibc_2_31 = pkgs-old.glibc;
 
-  gcc = pkgs-old.gcc-unwrapped;
+  gcc = pkgs.gcc-unwrapped.overrideAttrs (
+    final: pred: {
+      libc = glibc_2_31;
+    }
+  );
 
   getCustomGccStdenv =
     customGcc: customGlibc: origStdenv:
@@ -24,6 +28,6 @@ let
       };
     in
     overrideCC origStdenv compilerWrapped;
-  gcc_glibc_2_31 = getCustomGccStdenv gcc glibc_2_31 pkgs.stdenv pkgs;
+  stdenv-gcc_glibc_2_31 = getCustomGccStdenv gcc glibc_2_31 pkgs.stdenv pkgs;
 in
-gcc_glibc_2_31
+stdenv-gcc_glibc_2_31

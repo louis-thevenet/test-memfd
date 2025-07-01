@@ -24,56 +24,52 @@
       system = "x86_64-linux";
       pkgs = import nixpkgs { inherit system; };
       nixpkgs-old = inputs.nixpkgs-2-31;
-      pkgs-old = import nixpkgs-old {
-        inherit system;
-      };
+      pkgs-old = import nixpkgs-old { inherit system; };
 
+      # Get the old glibc and its development headers
       glibc_2_31 = pkgs-old.glibc;
 
-      gcc = pkgs.gcc-unwrapped;
-
-      getCustomGccStdenv =
-        customGcc: customGlibc: origStdenv:
-        { pkgs, ... }:
-        with pkgs;
-        let
-          compilerWrapped = wrapCCWith {
-            cc = customGcc;
-            bintools = wrapBintoolsWith {
-              bintools = binutils-unwrapped;
-              libc = customGlibc;
-            };
+      customStdenvComplete = pkgs.stdenvAdapters.overrideCC pkgs.stdenv (
+        pkgs.buildPackages.wrapCCWith {
+          cc = pkgs.gcc-unwrapped.overrideAttrs (old: {
+            stdenv = customStdenvComplete;
+            configureFlags = (old.configureFlags or [ ]) ++ [
+              "--with-native-system-header-dir=${glibc_2_31.dev}/include"
+              "--with-glibc-version=2.31"
+            ];
+          });
+          bintools = pkgs.buildPackages.wrapBintoolsWith {
+            bintools = pkgs.buildPackages.binutils-unwrapped;
+            libc = glibc_2_31;
+            inherit (pkgs.buildPackages) coreutils gnugrep;
           };
-        in
-        overrideCC origStdenv compilerWrapped;
-      stdenv_glibc_2_31 = getCustomGccStdenv gcc glibc_2_31 pkgs.stdenv pkgs;
+          libc = glibc_2_31;
+          extraPackages = [ glibc_2_31.dev or glibc_2_31 ];
+        }
+      );
+
     in
     {
-      packages.${system} =
-        let
-          build-test-program =
-            pkgs:
-
-            stdenv_glibc_2_31.mkDerivation {
-              name = "test-program";
-              src = ./.;
-              buildPhase = ''
-                gcc main.c -o test-program
-              '';
-              installPhase = ''
-                mkdir -p $out/bin
-                cp test-program $out/bin
-              '';
-            };
-
-        in
-        {
-          test = (build-test-program pkgs).overrideAttrs (
-            final: prev: {
-              stdenv = stdenv_glibc_2_31;
-            }
-          );
+      packages.${system} = {
+        gcc = customStdenvComplete.cc;
+        perl = pkgs.perl.override {
+          stdenv = customStdenvComplete;
+        };
+        hello = pkgs.hello.override {
+          stdenv = customStdenvComplete;
         };
 
+        test-program = customStdenvComplete.mkDerivation {
+          name = "test-program";
+          src = ./.;
+          buildPhase = ''
+            $CC main.c -o test-program
+          '';
+          installPhase = ''
+            mkdir -p $out/bin
+            cp test-program $out/bin
+          '';
+        };
+      };
     };
 }
