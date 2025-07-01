@@ -22,7 +22,31 @@
     }@inputs:
     let
       system = "x86_64-linux";
-      nixpkgs-set = import ./nixpkgs/default.nix { inherit inputs; };
+      pkgs = import nixpkgs { inherit system; };
+      nixpkgs-old = inputs.nixpkgs-2-31;
+      pkgs-old = import nixpkgs-old {
+        inherit system;
+      };
+
+      glibc_2_31 = pkgs-old.glibc;
+
+      gcc = pkgs.gcc-unwrapped;
+
+      getCustomGccStdenv =
+        customGcc: customGlibc: origStdenv:
+        { pkgs, ... }:
+        with pkgs;
+        let
+          compilerWrapped = wrapCCWith {
+            cc = customGcc;
+            bintools = wrapBintoolsWith {
+              bintools = binutils-unwrapped;
+              libc = customGlibc;
+            };
+          };
+        in
+        overrideCC origStdenv compilerWrapped;
+      stdenv_glibc_2_31 = getCustomGccStdenv gcc glibc_2_31 pkgs.stdenv pkgs;
     in
     {
       packages.${system} =
@@ -30,7 +54,7 @@
           build-test-program =
             pkgs:
 
-            pkgs.stdenv.mkDerivation {
+            stdenv_glibc_2_31.mkDerivation {
               name = "test-program";
               src = ./.;
               buildPhase = ''
@@ -44,16 +68,11 @@
 
         in
         {
-          inherit (nixpkgs-set)
-            pkgs-25-05
-            pkgs-2-31-recent
-            pkgs-2-35-recent
-            ;
-        }
-        // {
-          test-program-latest = build-test-program nixpkgs-set.pkgs-25-05;
-          test-program-2-31 = build-test-program nixpkgs-set.pkgs-2-31-recent;
-          test-program-2-35 = build-test-program nixpkgs-set.pkgs-2-35-recent;
+          test = (build-test-program pkgs).overrideAttrs (
+            final: prev: {
+              stdenv = stdenv_glibc_2_31;
+            }
+          );
         };
 
     };
