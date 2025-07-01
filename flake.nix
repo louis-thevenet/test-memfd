@@ -47,29 +47,35 @@
           extraPackages = [ glibc_2_31.dev or glibc_2_31 ];
         }
       );
-
+      overrideStdenv = pkg: pkg.override { stdenv = customStdenvComplete; };
+      packages = [
+        "hello"
+        "perl"
+        "gnumake"
+      ];
     in
     {
-      packages.${system} = {
-        gcc = customStdenvComplete.cc;
-        perl = pkgs.perl.override {
-          stdenv = customStdenvComplete;
-        };
-        hello = pkgs.hello.override {
-          stdenv = customStdenvComplete;
-        };
+      packages.${system} =
+        {
+          gcc = customStdenvComplete.cc;
 
-        test-program = customStdenvComplete.mkDerivation {
-          name = "test-program";
-          src = ./.;
-          buildPhase = ''
-            $CC main.c -o test-program
-          '';
-          installPhase = ''
-            mkdir -p $out/bin
-            cp test-program $out/bin
-          '';
-        };
-      };
+          test-program = customStdenvComplete.mkDerivation {
+            name = "test-program";
+            src = ./.;
+            buildPhase = ''
+              $CC main.c -o test-program
+            '';
+            installPhase = ''
+              mkdir -p $out/bin
+              cp test-program $out/bin
+            '';
+          };
+        }
+        // builtins.listToAttrs (
+          map (pkgName: {
+            name = pkgName;
+            value = overrideStdenv pkgs.${pkgName};
+          }) packages
+        );
     };
 }
