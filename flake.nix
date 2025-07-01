@@ -22,29 +22,36 @@
     }@inputs:
     let
       system = "x86_64-linux";
-      pkgs = import nixpkgs { inherit system; };
-      nixpkgs-old = inputs.nixpkgs-2-31;
+
+      overlays.glibc-2-31 = final: prev: {
+        libxcrypt = pkgs-old.libxcrypt; # broken only in 2.35
+      };
+      pkgs = import nixpkgs {
+        inherit system;
+        overlays = [ overlays.glibc-2-31 ];
+      };
+      nixpkgs-old = inputs.nixpkgs-2-35;
       pkgs-old = import nixpkgs-old { inherit system; };
 
       # Get the old glibc and its development headers
-      glibc_2_31 = pkgs-old.glibc;
+      glibc_2_35 = pkgs-old.glibc;
 
       customStdenvComplete = pkgs.stdenvAdapters.overrideCC pkgs.stdenv (
         pkgs.buildPackages.wrapCCWith {
           cc = pkgs.gcc-unwrapped.overrideAttrs (old: {
             stdenv = customStdenvComplete;
             configureFlags = (old.configureFlags or [ ]) ++ [
-              "--with-native-system-header-dir=${glibc_2_31.dev}/include"
-              "--with-glibc-version=2.31"
+              "--with-native-system-header-dir=${glibc_2_35.dev}/include"
+              "--with-glibc-version=${glibc_2_35.version}"
             ];
           });
           bintools = pkgs.buildPackages.wrapBintoolsWith {
             bintools = pkgs.buildPackages.binutils-unwrapped;
-            libc = glibc_2_31;
+            libc = glibc_2_35;
             inherit (pkgs.buildPackages) coreutils gnugrep;
           };
-          libc = glibc_2_31;
-          extraPackages = [ glibc_2_31.dev or glibc_2_31 ];
+          libc = glibc_2_35;
+          extraPackages = [ glibc_2_35.dev or glibc_2_35 ];
         }
       );
       overrideStdenv = pkg: pkg.override { stdenv = customStdenvComplete; };
@@ -55,6 +62,7 @@
       ];
     in
     {
+
       packages.${system} =
         {
           gcc = customStdenvComplete.cc;
