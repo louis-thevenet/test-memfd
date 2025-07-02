@@ -22,15 +22,15 @@
     }@inputs:
     let
       system = "x86_64-linux";
+      nixpkgs-old = inputs.nixpkgs-2-31;
 
       overlays.glibc-2-31 = final: prev: {
-        libxcrypt = pkgs-old.libxcrypt; # broken only in 2.35
+        # libxcrypt = pkgs-old.libxcrypt; # broken only in 2.35
       };
       pkgs = import nixpkgs {
         inherit system;
         overlays = [ overlays.glibc-2-31 ];
       };
-      nixpkgs-old = inputs.nixpkgs-2-35;
       pkgs-old = import nixpkgs-old { inherit system; };
 
       # Get the old glibc and its development headers
