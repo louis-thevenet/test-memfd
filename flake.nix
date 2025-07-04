@@ -22,7 +22,7 @@
     }@inputs:
     let
       system = "x86_64-linux";
-      nixpkgs-old = inputs.nixpkgs-2-31;
+      nixpkgs-old = inputs.nixpkgs-2-35;
 
       pkgs-old = import nixpkgs-old { inherit system; };
 
@@ -58,10 +58,10 @@
         in
         {
           inherit glibc;
-          inherit (inputs.nixpkgs-2-35) glibcLocales glibcIconv;
+          # inherit (nixpkgs-old) glibcIconv; # glibcLocales ;
         };
-      pkgs-old-glibc = import inputs.nixpkgs-2-35 {
-        localSystem = system;
+      pkgs-old-glibc = import nixpkgs {
+        inherit system;
         overlays = [ glibcOverlay ];
         config.replaceStdenv =
           { pkgs }:
@@ -82,13 +82,15 @@
           );
         config.replaceBootstrapFiles =
           prevFiles:
-          (pkgs-old.callPackage "${inputs.nixpkgs-2-35}/pkgs/stdenv/linux/make-bootstrap-tools.nix" { })
-          .bootstrapFiles;
+          (pkgs-old.callPackage "${nixpkgs-old}/pkgs/stdenv/linux/make-bootstrap-tools.nix" {
+            # localSystem = system;
+          }).bootstrapFiles;
       };
     in
     {
       packages.${system} = {
         perl = pkgs-old-glibc.perl;
+        slapos-core = pkgs-old-glibc.callPackage ./slapos-core.nix { };
         test-program = pkgs-old-glibc.stdenv.mkDerivation {
           name = "test-program";
           src = ./.;

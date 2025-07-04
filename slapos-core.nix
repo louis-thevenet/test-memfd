@@ -1,27 +1,20 @@
 {
-  stdenv-glibc,
+  lib,
   pkgs,
   ...
 }:
-pkgs.python311.pkgs.buildPythonApplication {
+pkgs.python3Packages.buildPythonApplication {
   pname = "slapos";
   version = "1.16.3";
-  sdtenv = stdenv-glibc;
+
+  src = ./.;
   format = "pyproject";
 
-  src = pkgs.fetchFromGitLab {
-    owner = "louis.thevenet";
-    repo = "slapos.core";
-    domain = "lab.nexedi.com";
-    rev = "5258974b6d7f";
-    # rev = "04aadf0615a0"; # PEP 625 fix: https://lab.nexedi.com/nexedi/slapos.buildout/-/merge_requests/43
-    hash = "sha256-IEtvu7KvTyTkFWkeXUViBrjjvwRIalOdMyYGOUYD9gE=";
-  };
-
   propagatedBuildInputs =
+
     let
       zc-buildout = (
-        pkgs.python311Packages.buildPythonPackage {
+        pkgs.python3Packages.buildPythonPackage {
           pname = "zc.buildout";
           pyproject = true;
 
@@ -36,9 +29,9 @@ pkgs.python311.pkgs.buildPythonApplication {
             hash = "sha256-/+5yL3QTR3zIHUXUyq25RWrrGN1/qAYMykWHtG/Rm8Y=";
           };
 
-          build-system = with pkgs.python311Packages; [ setuptools ];
+          build-system = with pkgs.python3Packages; [ setuptools ];
 
-          dependencies = with pkgs.python311Packages; [
+          dependencies = with pkgs.python3Packages; [
             # TODO: Patch buildout fork so it supports pip >= 23.2.1
             #  File "zc/buildout/patches.py", line 66, in patch_PackageIndex
             # from pip._vendor import six
@@ -59,7 +52,7 @@ pkgs.python311.pkgs.buildPythonApplication {
           pythonNamespaces = [ "zc" ];
         }
       );
-      libnetworkcache = pkgs.python311Packages.buildPythonPackage rec {
+      libnetworkcache = pkgs.python3Packages.buildPythonPackage rec {
         pname = "libnetworkcache";
         version = "0.28";
         src = pkgs.fetchFromGitLab {
@@ -77,46 +70,55 @@ pkgs.python311.pkgs.buildPythonApplication {
       zc-buildout
       libnetworkcache
     ]
-    ++ (with pkgs.python311Packages; [
+    ++ (
+      with pkgs.python3Packages;
+      [
 
-      # (buildPythonPackage {
-      #   pname = "zc-recipe-egg";
-      #   pyproject = true;
+        # (buildPythonPackage {
+        #   pname = "zc-recipe-egg";
+        #   pyproject = true;
 
-      #   version = "2.0.8.dev0+slapos010";
-      #   src = pkgs.fetchFromGitLab {
-      #     owner = "nexedi";
-      #     repo = "slapos.buildout";
-      #     domain = "lab.nexedi.com";
-      #     rev = "3.0.1+slapos010";
-      #     hash = "sha256-gWmPa3jzhy3RsWZ0j21JHWloRB4PbBnRLZBA8hlxuYI=";
-      #   };
-      #   sourceRoot = "source/zc.recipe.egg_";
-      #   build-system = with pkgs.python311Packages; [ setuptools ];
+        #   version = "2.0.8.dev0+slapos010";
+        #   src = pkgs.fetchFromGitLab {
+        #     owner = "nexedi";
+        #     repo = "slapos.buildout";
+        #     domain = "lab.nexedi.com";
+        #     rev = "3.0.1+slapos010";
+        #     hash = "sha256-gWmPa3jzhy3RsWZ0j21JHWloRB4PbBnRLZBA8hlxuYI=";
+        #   };
+        #   sourceRoot = "source/zc.recipe.egg_";
+        #   build-system = with pkgs.python310Packages; [ setuptools ];
 
-      #   dependencies = [ zc-buildout ];
-      #   pythonImportsCheck = [ "zc.recipe.egg" ];
-      #   pythonNamespaces = [ "zc.recipe" ];
+        #   dependencies = [ zc-buildout ];
+        #   pythonImportsCheck = [ "zc.recipe.egg" ];
+        #   pythonNamespaces = [ "zc.recipe" ];
 
-      # })
-      wheel
-      flask
-      (lxml.override { stdenv = stdenv-glibc; })
-      netaddr
-      netifaces
-      (supervisor.override { stdenv = stdenv-glibc; })
-      (psutil.override { stdenv = stdenv-glibc; })
-      xml-marshaller
-      zope_interface
-      cliff
-      (requests.override { stdenv = stdenv-glibc; })
-      six
-      cachecontrol
-      jsonschema
-      pyyaml
-      uritemplate
-      distro
-      cachecontrol
-      filelock
-    ]);
+        # })
+        wheel
+        flask
+        lxml
+        netaddr
+        netifaces
+        supervisor
+        psutil
+        xml-marshaller
+        zope_interface
+        cliff
+        requests
+        six
+        cachecontrol
+        jsonschema
+        pyyaml
+        uritemplate
+        distro
+        cachecontrol
+        filelock
+      ]
+      ++ lib.optionals (pythonOlder "3.0") [
+        subprocess32
+        enum34
+        selectors34
+        ipaddress
+      ]
+    );
 }
