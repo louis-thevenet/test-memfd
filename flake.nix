@@ -24,12 +24,12 @@
       system = "x86_64-linux";
       nixpkgs-old = inputs.nixpkgs-2-31;
 
-      overlays.glibc-2-31 = final: prev: {
+      overlays.packages-to-fix = final: prev: {
         # libxcrypt = pkgs-old.libxcrypt; # broken only in 2.35
       };
       pkgs = import nixpkgs {
         inherit system;
-        overlays = [ overlays.glibc-2-31 ];
+        overlays = [ overlays.packages-to-fix ];
       };
       pkgs-old = import nixpkgs-old { inherit system; };
 
@@ -48,23 +48,29 @@
           bintools = pkgs.buildPackages.wrapBintoolsWith {
             bintools = pkgs.buildPackages.binutils-unwrapped;
             libc = glibc_2_35;
-            inherit (pkgs.buildPackages) coreutils gnugrep;
+
+            coreutils = pkgs.buildPackages.coreutils.override { libc = glibc_2_35; };
+            gnugrep = pkgs.buildPackages.gnugrep.override { libc = glibc_2_35; };
           };
           libc = glibc_2_35;
           extraPackages = [ glibc_2_35.dev or glibc_2_35 ];
         }
       );
       overrideStdenv = pkg: pkg.override { stdenv = customStdenvComplete; };
-      packages = [
+      packagesToOverride = [
         "hello"
         "perl"
         "gnumake"
       ];
     in
-    {
-
+    rec {
       packages.${system} =
         {
+          # slapos = import ./slapos-core.nix {
+          #   stdenv-glibc = customStdenvComplete;
+          #   inherit pkgs;
+          # };
+
           gcc = customStdenvComplete.cc;
 
           test-program = customStdenvComplete.mkDerivation {
@@ -83,7 +89,7 @@
           map (pkgName: {
             name = pkgName;
             value = overrideStdenv pkgs.${pkgName};
-          }) packages
+          }) packagesToOverride
         );
     };
 }
