@@ -24,72 +24,82 @@
       system = "x86_64-linux";
       nixpkgs-old = inputs.nixpkgs-2-31;
 
-      overlays.packages-to-fix = final: prev: {
-        # libxcrypt = pkgs-old.libxcrypt; # broken only in 2.35
-      };
-      pkgs = import nixpkgs {
-        inherit system;
-        overlays = [ overlays.packages-to-fix ];
-      };
       pkgs-old = import nixpkgs-old { inherit system; };
 
-      # Get the old glibc and its development headers
-      glibc_2_35 = pkgs-old.glibc;
-
-      customStdenvComplete = pkgs.stdenvAdapters.overrideCC pkgs.stdenv (
-        pkgs.buildPackages.wrapCCWith {
-          cc = pkgs.gcc-unwrapped.overrideAttrs (old: {
-            stdenv = customStdenvComplete;
-            configureFlags = (old.configureFlags or [ ]) ++ [
-              "--with-native-system-header-dir=${glibc_2_35.dev}/include"
-              "--with-glibc-version=${glibc_2_35.version}"
-            ];
-          });
-          bintools = pkgs.buildPackages.wrapBintoolsWith {
-            bintools = pkgs.buildPackages.binutils-unwrapped;
-            libc = glibc_2_35;
-
-            coreutils = pkgs.buildPackages.coreutils.override { libc = glibc_2_35; };
-            gnugrep = pkgs.buildPackages.gnugrep.override { libc = glibc_2_35; };
-          };
-          libc = glibc_2_35;
-          extraPackages = [ glibc_2_35.dev or glibc_2_35 ];
-        }
-      );
-      overrideStdenv = pkg: pkg.override { stdenv = customStdenvComplete; };
-      packagesToOverride = [
-        "hello"
-        "perl"
-        "gnumake"
-      ];
-    in
-    rec {
-      packages.${system} =
+      glibcOverlay =
+        final: prev:
+        let
+          glibc =
+            (pkgs-old.glibc.override {
+              inherit (prev)
+                callPackage
+                ;
+            }).overrideAttrs
+              (attrs: {
+                configureFlags = attrs.configureFlags ++ [
+                  # new gcc has stricter error checking
+                  "--disable-werror"
+                ];
+                # https://stackoverflow.com/a/77107152 this glibc needs older make
+                depsBuildBuild = attrs.depsBuildBuild ++ [ prev.pkgsBuildBuild.gnumake42 ];
+                makeFlags = [ "OBJCOPY=${prev.stdenv.cc.targetPrefix}objcopy" ];
+                passthru = attrs.passthru // {
+                  libgcc = prev.libgcc;
+                };
+              })
+            // {
+              # new nixpkgs has this as a separate output
+              getent = glibc.bin;
+              stdenv = prev.stdenv // {
+                lib = glibc.lib;
+              };
+              pname = "glibc";
+            };
+        in
         {
-          # slapos = import ./slapos-core.nix {
-          #   stdenv-glibc = customStdenvComplete;
-          #   inherit pkgs;
-          # };
-
-          gcc = customStdenvComplete.cc;
-
-          test-program = customStdenvComplete.mkDerivation {
-            name = "test-program";
-            src = ./.;
-            buildPhase = ''
-              $CC main.c -o test-program
-            '';
-            installPhase = ''
-              mkdir -p $out/bin
-              cp test-program $out/bin
-            '';
-          };
-        }
-        // builtins.listToAttrs (
-          map (pkgName: {
-            name = pkgName;
-            value = overrideStdenv pkgs.${pkgName};
-          }) packagesToOverride
-        );
+          inherit glibc;
+          inherit (inputs.nixpkgs-2-35) glibcLocales glibcIconv;
+        };
+      pkgs-old-glibc = import inputs.nixpkgs-2-35 {
+        localSystem = system;
+        overlays = [ glibcOverlay ];
+        config.replaceStdenv =
+          { pkgs }:
+          pkgs.overrideCC pkgs.stdenv (
+            pkgs.wrapCCWith {
+              cc = pkgs.gcc-unwrapped.overrideAttrs (old: {
+                configureFlags = (old.configureFlags or [ ]) ++ [
+                  "--with-native-system-header-dir=${pkgs-old.glibc.dev}/include"
+                  "--with-glibc-version=${pkgs-old.glibc.version}"
+                ];
+              });
+              bintools = pkgs.wrapBintoolsWith {
+                bintools = pkgs.binutils-unwrapped;
+                libc = pkgs.glibc;
+              };
+              libc = pkgs.glibc;
+            }
+          );
+        config.replaceBootstrapFiles =
+          prevFiles:
+          (pkgs-old.callPackage "${inputs.nixpkgs-2-35}/pkgs/stdenv/linux/make-bootstrap-tools.nix" { })
+          .bootstrapFiles;
+      };
+    in
+    {
+      packages.${system} = {
+        perl = pkgs-old-glibc.perl;
+        test-program = pkgs-old-glibc.stdenv.mkDerivation {
+          name = "test-program";
+          src = ./.;
+          buildPhase = ''
+            $CC main.c -o test-program
+          '';
+          installPhase = ''
+            mkdir -p $out/bin
+            cp test-program $out/bin
+          '';
+        };
+      };
     };
 }
