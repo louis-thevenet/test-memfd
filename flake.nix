@@ -1,7 +1,7 @@
 {
   description = "Nixpkgs with older glibc overlay";
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/25.05";
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
   };
   outputs =
     {
