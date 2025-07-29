@@ -1,5 +1,5 @@
 FROM gcc:latest
-COPY . /DockerWorld
-WORKDIR /DockerWorld/
+COPY . /Test
+WORKDIR /Test/
 RUN gcc -o test-program main.c
 CMD ["./test-program"]
